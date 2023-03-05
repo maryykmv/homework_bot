@@ -1,13 +1,24 @@
 from dotenv import load_dotenv
+import logging
 import os
 import requests
 import time
 from telegram import Bot
-
+from threading import Timer
 
 
 load_dotenv()
+# Глобальная конфигурация для всех
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename='program.log',
+    format='%(asctime)s, %(levelname)s, %(message)s, %(name)s'
+)
 
+# А тут установлены настройки логгера для текущего файла - example_for_log.py
+logger = logging.getLogger(__name__)
+# Устанавливаем уровень, с которого логи будут сохраняться в файл
+logger.setLevel(logging.INFO)
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -32,16 +43,24 @@ def check_tokens():
     Если отсутствует хотя бы одна переменная окружения выходим."""
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         return True
+    else:
+        logger.critical('Проверьте переменные окружения! PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID')
 
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат, определяемый переменной окружения
     TELEGRAM_CHAT_ID. Принимает на вход два параметра: экземпляр класса
     Bot и строку с текстом сообщения."""
-    bot.send_message(
-        chat_id=TELEGRAM_CHAT_ID,
-        text=message
-    )
+
+    try:
+        result = bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=message
+        )
+        logging.debug(f'Удачная отправка сообщения в Telegram: {result}')
+    except Exception as error:
+        # print(error)
+        logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
 
 
 def get_api_answer(timestamp):
@@ -49,17 +68,33 @@ def get_api_answer(timestamp):
     передается временная метка.
     В случае успешного запроса должна вернуть ответ API, приведя его
     из формата JSON к типам данных Python."""
-    homework_statuses = requests.get(
-        ENDPOINT, headers=HEADERS, params=timestamp
-    )
-    return homework_statuses.json()
+    try:
+        homework_statuses = requests.get(
+            ENDPOINT, headers=HEADERS, params=timestamp
+        )
+        if homework_statuses.status_code != 200:
+            raise logging.error(f'Код ошибки при запросе к API: {homework_statuses.status_code}')
+        return homework_statuses.json()
+    except requests.RequestException as error:
+        logging.error(f'Ошибка при запросе к API: {error}')
 
 
 def check_response(response):
     """Проверяет ответ API на соответствие документации. В качестве параметра
     функция получает ответ API, приведенный к типам данных Python."""
-    if response.get('homeworks') and response.get('homeworks'):
-        return True
+    try:
+        if type(response) is not list:
+            raise logging.error(f'В ответе API структура данных не соответствует ожиданиям.')
+
+        if 'homeworks' not in response:
+            raise logging.error(f'В ответе API домашки нет ключа `homeworks`.')
+
+        if 'homeworks' in response:
+            return True
+
+    except KeyError as error:
+        # print(error)
+        logging.error(f'Отсутствует ключ homeworks в ответе API: {error}')
 
 
 def parse_status(homework):
@@ -70,47 +105,62 @@ def parse_status(homework):
     словаря HOMEWORK_VERDICTS."""
     homework_name = homework.get('homework_name')
     status = homework.get('status')
-    for key in HOMEWORK_VERDICTS:
-        if key == status:
-            verdict = HOMEWORK_VERDICTS[key]
-            return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    # old_status = None
+
+    try:
+        for status_key in HOMEWORK_VERDICTS.keys():
+            # old_status = status
+            if not type(status_key) is str:
+                raise logging.error(f'Функция `parse_status` возвращает не строку: {type(status_key)}')
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            if not homework_name:
+                raise logging.error(f'В ответе функции `parse_status` не содержится название домашней работы: {homework_name}')
+
+            if status not in HOMEWORK_VERDICTS.keys():
+                raise logging.error(f'В ответе функции `parse_status` не содержится название домашней работы: {homework_name}')
+
+            if status_key == status:# and old_status != status:
+                verdict = HOMEWORK_VERDICTS[status_key]
+                message = f'Изменился статус проверки работы "{homework_name}". {verdict}'
+
+                return message
+    except KeyError as error:
+        logging.error(f'Неожиданный статус домашней работы, в ответе API: {error}')
 
 
 def main():
     """Основная логика работы бота."""
+    bot = Bot(token=TELEGRAM_TOKEN)
     if check_tokens():
-        asnwer_api = get_api_answer(PAYLOAD)
-        # print(asnwer_api)
-
-        check_resp = check_response(asnwer_api)
-        # print(check_resp)
-
-        # print(asnwer_api.get('homeworks')[0]['homework_name'])
-
-        if asnwer_api.get('homeworks')[0]['homework_name'] == HOMEWORK:
-            homework = asnwer_api.get('homeworks')[0]
-
-        # print(homework)
-        # parser_st = parse_status(homework)
-        # print(parser_st)
-
-        bot = Bot(token=TELEGRAM_TOKEN)
-        message = parse_status(homework)
-        send_message(bot, message)
-
         # timestamp = int(time.time())
+        # PAYLOAD = {'from_date': timestamp}
+        # print(timestamp)
+        api_answer = get_api_answer(PAYLOAD)
+        print(api_answer)
+        print(type(api_answer))
 
-    #     ...
+        if check_response(list(api_answer)):
+            if api_answer.get('homeworks')[0]['homework_name'] == HOMEWORK:
+                homework = api_answer.get('homeworks')[0]
 
-    #     while True:
-    #         try:
+                print(homework)
+            # parser_st = parse_status(homework)
+            # print(parser_st)
 
-    #             ...
+                message = parse_status(homework)
+                send_message(bot, message)
 
-    #         except Exception as error:
-    #             message = f'Сбой в работе программы: {error}'
-    #             ...
+            # time.sleep(RETRY_PERIOD)
+
+    # while True:
+    #     try:
+
+    #        ...
+
+    #     except Exception as error:
+    #         message = f'Сбой в работе программы: {error}'
     #         ...
+    #     ...
 
 
 if __name__ == '__main__':
