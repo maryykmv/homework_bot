@@ -3,7 +3,7 @@ import logging
 import os
 import requests
 import time
-from telegram import Bot
+import telegram
 from threading import Timer
 
 
@@ -84,7 +84,9 @@ def check_response(response):
     функция получает ответ API, приведенный к типам данных Python."""
     try:
         if type(response) is not list:
-            raise logging.error(f'В ответе API структура данных не соответствует ожиданиям.')
+            # print(type(response))
+        #     # logging.error(f'В ответе API структура данных не соответствует ожиданиям.')
+            raise TypeError('В ответе API структура данных не соответствует ожиданиям.')
 
         if 'homeworks' not in response:
             raise logging.error(f'В ответе API домашки нет ключа `homeworks`.')
@@ -105,24 +107,23 @@ def parse_status(homework):
     словаря HOMEWORK_VERDICTS."""
     homework_name = homework.get('homework_name')
     status = homework.get('status')
-    # old_status = None
+    # old_status = status
 
     try:
         for status_key in HOMEWORK_VERDICTS.keys():
             # old_status = status
             if not type(status_key) is str:
                 raise logging.error(f'Функция `parse_status` возвращает не строку: {type(status_key)}')
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
             if not homework_name:
                 raise logging.error(f'В ответе функции `parse_status` не содержится название домашней работы: {homework_name}')
 
             if status not in HOMEWORK_VERDICTS.keys():
                 raise logging.error(f'В ответе функции `parse_status` не содержится название домашней работы: {homework_name}')
 
-            if status_key == status:# and old_status != status:
+            if (status_key == status):# and (old_status != status) and (old_status in HOMEWORK_VERDICTS.keys()):
                 verdict = HOMEWORK_VERDICTS[status_key]
                 message = f'Изменился статус проверки работы "{homework_name}". {verdict}'
-
                 return message
     except KeyError as error:
         logging.error(f'Неожиданный статус домашней работы, в ответе API: {error}')
@@ -130,28 +131,30 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    bot = Bot(token=TELEGRAM_TOKEN)
-    if check_tokens():
-        # timestamp = int(time.time())
-        # PAYLOAD = {'from_date': timestamp}
-        # print(timestamp)
-        api_answer = get_api_answer(PAYLOAD)
-        print(api_answer)
-        print(type(api_answer))
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    try:
+        if check_tokens():
+            # timestamp = int(time.time())
+            # PAYLOAD = {'from_date': timestamp}
+            # print(timestamp)
+            api_answer = get_api_answer(PAYLOAD)
+            # print(api_answer)
+            # print(type(api_answer))
+            # print(list(api_answer))
 
-        if check_response(list(api_answer)):
-            if api_answer.get('homeworks')[0]['homework_name'] == HOMEWORK:
-                homework = api_answer.get('homeworks')[0]
+            if check_response(list(api_answer)):
+                if api_answer.get('homeworks')[0]['homework_name'] == HOMEWORK:
+                    homework = api_answer.get('homeworks')[0]
 
-                print(homework)
-            # parser_st = parse_status(homework)
-            # print(parser_st)
+                    print(homework)
 
-                message = parse_status(homework)
-                send_message(bot, message)
+                    message = parse_status(homework)
+                    # send_message(bot, message)
 
-            # time.sleep(RETRY_PERIOD)
-
+                time.sleep(RETRY_PERIOD)
+    except (Exception) as error:
+        message = f'Сбой в работе программы: {error}'
+        logging.critical(f'Сбой в работе программы: {error}')
     # while True:
     #     try:
 
