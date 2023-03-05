@@ -4,20 +4,32 @@ import os
 import requests
 import time
 import telegram
-
+import sys
 
 load_dotenv()
 # Глобальная конфигурация для всех
 logging.basicConfig(
     level=logging.DEBUG,
     filename='program.log',
-    format='%(asctime)s, %(levelname)s, %(message)s, %(name)s'
+    format='%(asctime)s [%(levelname)s] %(message)s %(name)s'
 )
+
+logger = logging.getLogger("logger")
+
+formatter = logging.Formatter(
+    '%(asctime)s [%(levelname)s] %(message)s %(name)s')
+
+handler = logging.StreamHandler(stream=sys.stdout)
+handler.setFormatter(formatter)
+handler.setLevel(logging.DEBUG)
+
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-# TELEGRAM_CHAT_ID = '463435736'
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -31,6 +43,9 @@ HOMEWORK_VERDICTS = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
+
+STATE = {'old_status': None,
+         'old_message': None}
 
 
 def check_tokens():
@@ -94,6 +109,10 @@ def check_response(response):
             raise TypeError('В ответе API тип данных не'
                             'соответствует ожиданиям.')
 
+        if response['homeworks'] == []:
+            logging.error('В ответе API нет данных.')
+            return False
+
         if 'homeworks' in response:
             return True
 
@@ -146,7 +165,6 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    old_status = None
     check_tokens()
 
     try:
@@ -161,17 +179,28 @@ def main():
             if api_answer.get('homeworks')[0]['homework_name'] == HOMEWORK:
                 homework = api_answer.get('homeworks')[0]
 
-                if old_status is None:
-                    old_status = homework['status']
+                if STATE['old_status'] is None:
+                    STATE['old_status'] = homework['status']
+                    logging.debug('Статус домашки не изменился')
 
-                if old_status != homework['status']:
+                if STATE['old_status'] != homework['status']:
                     message = parse_status(homework)
                     send_message(bot, message)
 
-            time.sleep(RETRY_PERIOD)
+        time.sleep(RETRY_PERIOD)
     except Exception as error:
         message = f'Сбой в работе программы: {error}'
-        logging.critical(f'Сбой в работе программы: {error}')
+        logger.error(message)
+
+        if STATE['old_message'] is None:
+            send_message(bot, message)
+            STATE['old_message'] = message
+            print(f"old_message {STATE['old_message']}")
+
+        if STATE['old_message'] != message:
+            STATE['old_message'] = message
+            print(message)
+            send_message(bot, message)
 
 
 if __name__ == '__main__':
