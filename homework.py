@@ -32,8 +32,8 @@ RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 PAYLOAD = {'from_date': 0}
-HOMEWORK = 'wildcat3333__hw05_final.zip'
-
+# HOMEWORK = 'wildcat3333__hw05_final.zip'
+HOMEWORK = 'homework_bot.zip'
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -47,7 +47,8 @@ STATE = {'old_status': None,
 
 def check_tokens():
     """Проверяет доступность переменных окружения.
-    Если отсутствует хотя бы одна переменная окружения выходим."""
+    Если отсутствует хотя бы одна переменная окружения выходим.
+    """
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         return True
     else:
@@ -60,8 +61,8 @@ def check_tokens():
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат, определяемый переменной окружения
     TELEGRAM_CHAT_ID. Принимает на вход два параметра: экземпляр класса
-    Bot и строку с текстом сообщения."""
-
+    Bot и строку с текстом сообщения.
+    """
     try:
         result = bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
@@ -76,7 +77,8 @@ def get_api_answer(timestamp):
     """Делает запрос к  эндпоинту API-сервиса. В качестве параметра в функцию
     передается временная метка.
     В случае успешного запроса должна вернуть ответ API, приведя его
-    из формата JSON к типам данных Python."""
+    из формата JSON к типам данных Python.
+    """
     try:
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
@@ -94,7 +96,8 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Проверяет ответ API на соответствие документации. В качестве параметра
-    функция получает ответ API, приведенный к типам данных Python."""
+    функция получает ответ API, приведенный к типам данных Python.
+    """
     try:
         if 'homeworks' not in response:
             logging.error('В ответе API домашки нет ключа `homeworks`.')
@@ -122,7 +125,8 @@ def parse_status(homework):
     В качестве параметра функция получает только один элемент из списка
     домашних работ. В случае успеха, функция возвращает подготовленную
     для отправки в Telegram строку, содержащую один из вердиктов
-    словаря HOMEWORK_VERDICTS."""
+    словаря HOMEWORK_VERDICTS.
+    """
     homework_name = homework.get('homework_name')
     status = homework.get('status')
 
@@ -161,7 +165,8 @@ def parse_status(homework):
 
 
 def main():
-    """Основная логика работы бота."""
+    """Основная логика работы бота.
+    """
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     check_tokens()
 
