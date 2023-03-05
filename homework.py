@@ -7,14 +7,12 @@ import telegram
 import sys
 
 load_dotenv()
-# Глобальная конфигурация для всех
+
 logging.basicConfig(
     level=logging.DEBUG,
     filename='program.log',
     format='%(asctime)s [%(levelname)s] %(message)s %(name)s'
 )
-
-logger = logging.getLogger("logger")
 
 formatter = logging.Formatter(
     '%(asctime)s [%(levelname)s] %(message)s %(name)s')
@@ -23,8 +21,7 @@ handler = logging.StreamHandler(stream=sys.stdout)
 handler.setFormatter(formatter)
 handler.setLevel(logging.DEBUG)
 
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logging.getLogger('').addHandler(handler)
 
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
@@ -110,7 +107,7 @@ def check_response(response):
                             'соответствует ожиданиям.')
 
         if response['homeworks'] == []:
-            logging.error('В ответе API нет данных.')
+            logging.info('В ответе API нет данных.')
             return False
 
         if 'homeworks' in response:
@@ -134,7 +131,7 @@ def parse_status(homework):
             if not type(status_key) is str:
                 logging.error(f'Функция `parse_status` возвращает не строку: '
                               f'{type(status_key)}')
-                raise Exception(f'Функция `parse_status` возвращает '
+                raise TypeError(f'Функция `parse_status` возвращает '
                                 f'не строку: {type(status_key)}')
 
             if not homework_name:
@@ -156,6 +153,7 @@ def parse_status(homework):
                 message = (f'Изменился статус проверки работы '
                            f'"{homework_name}". '
                            f'{verdict}')
+
                 return message
     except KeyError as error:
         logging.error(f'Неожиданный статус домашней работы, в ответе API: '
@@ -168,12 +166,9 @@ def main():
     check_tokens()
 
     try:
-
         timestamp = int(time.time())
         PAYLOAD = {'from_date': timestamp}
-        print(timestamp)
         api_answer = get_api_answer(PAYLOAD)
-        print(api_answer)
 
         if check_response(api_answer):
             if api_answer.get('homeworks')[0]['homework_name'] == HOMEWORK:
@@ -188,18 +183,16 @@ def main():
                     send_message(bot, message)
 
         time.sleep(RETRY_PERIOD)
+
     except Exception as error:
         message = f'Сбой в работе программы: {error}'
-        logger.error(message)
 
         if STATE['old_message'] is None:
             send_message(bot, message)
             STATE['old_message'] = message
-            print(f"old_message {STATE['old_message']}")
 
         if STATE['old_message'] != message:
             STATE['old_message'] = message
-            print(message)
             send_message(bot, message)
 
 
