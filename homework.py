@@ -15,14 +15,15 @@ logging.basicConfig(
     format='%(asctime)s, %(levelname)s, %(message)s, %(name)s'
 )
 
-# А тут установлены настройки логгера для текущего файла - example_for_log.py
-logger = logging.getLogger(__name__)
-# Устанавливаем уровень, с которого логи будут сохраняться в файл
-logger.setLevel(logging.INFO)
+# # А тут установлены настройки логгера для текущего файла - example_for_log.py
+# logger = logging.getLogger(__name__)
+# # Устанавливаем уровень, с которого логи будут сохраняться в файл
+# logger.setLevel(logging.INFO)
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+TELEGRAM_CHAT_ID = '463435736'
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -44,7 +45,7 @@ def check_tokens():
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         return True
     else:
-        logger.critical('Проверьте переменные окружения! PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID')
+        logging.critical('Проверьте переменные окружения! PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID')
 
 
 def send_message(bot, message):
@@ -59,7 +60,6 @@ def send_message(bot, message):
         )
         logging.debug(f'Удачная отправка сообщения в Telegram: {result}')
     except Exception as error:
-        # print(error)
         logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
 
 
@@ -72,8 +72,9 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
+        
         if homework_statuses.status_code != 200:
-            raise logging.error(f'Код ошибки при запросе к API: {homework_statuses.status_code}')
+            raise Exception(f'Код ошибки при запросе к API: {homework_statuses.status_code}')
         return homework_statuses.json()
     except requests.RequestException as error:
         logging.error(f'Ошибка при запросе к API: {error}')
@@ -83,13 +84,13 @@ def check_response(response):
     """Проверяет ответ API на соответствие документации. В качестве параметра
     функция получает ответ API, приведенный к типам данных Python."""
     try:
-        if type(response) is not list:
-            # print(type(response))
-        #     # logging.error(f'В ответе API структура данных не соответствует ожиданиям.')
-            raise TypeError('В ответе API структура данных не соответствует ожиданиям.')
-
         if 'homeworks' not in response:
-            raise logging.error(f'В ответе API домашки нет ключа `homeworks`.')
+            logging.error(f'В ответе API домашки нет ключа `homeworks`.')
+            raise TypeError(f'В ответе API домашки нет ключа `homeworks`.')
+
+        if type(response['homeworks']) is not list:
+            logging.error(f'В ответе API тип данных не соответствует ожиданиям.')
+            raise TypeError(f'В ответе API тип данных не соответствует ожиданиям.')
 
         if 'homeworks' in response:
             return True
@@ -152,9 +153,9 @@ def main():
                     # send_message(bot, message)
 
                 time.sleep(RETRY_PERIOD)
-    except (Exception) as error:
+    except Exception as error:
         message = f'Сбой в работе программы: {error}'
-        logging.critical(f'Сбой в работе программы: {error}')
+        logging.critical(error)
     # while True:
     #     try:
 
