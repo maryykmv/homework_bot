@@ -13,7 +13,6 @@ load_dotenv()
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-# TELEGRAM_CHAT_ID = ''
 
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -51,10 +50,10 @@ def check_tokens():
     """Проверяет доступность переменных окружения.
     Если отсутствует хотя бы одна переменная окружения выходим.
     """
-    # for name in ('PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID'):
-    #     if globals()[name]:
-    #         print(f'!!!! {globals()[name]}')
-    if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+    if all((globals()[name] for name in (
+            'PRACTICUM_TOKEN',
+            'TELEGRAM_TOKEN',
+            'TELEGRAM_CHAT_ID'))):
         return True
     else:
         logging.critical(CHECK_VARIABLES)
@@ -176,9 +175,7 @@ def main():
 
         # while True:
         try:
-            # payload = {'from_date': int(time.time())}
-            payload = {'from_date': 0}
-            api_answer = get_api_answer(payload)
+            api_answer = get_api_answer({'from_date': int(time.time())})
 
             if check_response(api_answer):
                 homework = api_answer.get('homeworks')[0]
