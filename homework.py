@@ -70,17 +70,17 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
-
-        if homework_statuses.status_code != 200:
-            raise ConnectionError(f'Код ошибки при запросе к API: '
-                                  f'{homework_statuses.status_code}.'
-                                  f'ENDPOINT={ENDPOINT}, headers={HEADERS},'
-                                  f'params={timestamp}')
-        return homework_statuses.json()
     except requests.RequestException as error:
-        raise ConnectionError(f'Ошибка при запросе к API: {error}.'
+        raise ConnectionError(f'Ошибка при запросе к API: '
+                              f'ENDPOINT={ENDPOINT}, headers={HEADERS},'
+                              f'params={timestamp}. {error}.')
+
+    if homework_statuses.status_code != 200:
+        raise ConnectionError(f'Код ошибки при запросе к API: '
+                              f'{homework_statuses.status_code}.'
                               f'ENDPOINT={ENDPOINT}, headers={HEADERS},'
                               f'params={timestamp}')
+    return homework_statuses.json()
 
 
 def check_response(response):
@@ -88,6 +88,10 @@ def check_response(response):
     В качестве параметра функция получает ответ API, приведенный
     к типам данных Python.
     """
+    if type(response) is not dict:
+        raise TypeError(f"В ответе API тип данных не"
+                        f"соответствует словарю. "
+                        f"{type(response['homeworks'])}")
 
     if 'homeworks' not in response:
         raise TypeError('В ответе API домашки нет ключа `homeworks`.')
@@ -109,32 +113,20 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     status = homework.get('status')
 
-    try:
-        for status_key in HOMEWORK_VERDICTS.keys():
-            print(status_key)
-            if not type(status_key) is str:
-                logging.error(f'Функция `parse_status` возвращает не строку: '
-                              f'{type(status_key)}')
-                raise TypeError(f'Функция `parse_status` возвращает '
-                                f'не строку: {type(status_key)}')
+    if not homework_name:
+        raise ValueError(f'В ответе функции `parse_status` '
+                         f'не содержится название домашней работы: '
+                         f'{homework_name}')
 
-            if not homework_name:
-                raise ValueError(f'В ответе функции `parse_status` '
-                                 f'не содержится название домашней работы: '
-                                 f'{homework_name}')
-
-            if status not in HOMEWORK_VERDICTS.keys():
-                raise ValueError(f'В ответе API не содержится '
-                                 f'статуса домашней работы = '
-                                 f'{homework_name}')
-
-            if (status_key == status):
-                return (f'Изменился статус проверки работы '
-                        f'"{homework_name}". '
-                        f'{HOMEWORK_VERDICTS[status_key]}')
-    except KeyError as error:
-        logging.error(f'Неожиданный статус домашней работы, в ответе API: '
-                      f'{error}')
+    if status not in HOMEWORK_VERDICTS.keys():
+        raise ValueError(f'В ответе API не содержится '
+                         f'статуса домашней работы = '
+                         f'{homework_name}')
+    for status_key in HOMEWORK_VERDICTS.keys():
+        if (status_key == status):
+            return (f'Изменился статус проверки работы '
+                    f'"{homework_name}". '
+                    f'{HOMEWORK_VERDICTS[status_key]}')
 
 
 def main():
@@ -146,15 +138,13 @@ def main():
         level=logging.DEBUG,
         format='%(asctime)s [%(levelname)s] %(message)s %(funcName)s',
         handlers=[logging.FileHandler(
-            __file__ + '.log',
-            mode='w'
+            __file__ + '.log'
         ), stream_handler]
     )
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
     old_status = None
-    old_message = None
 
     while True:
         try:
@@ -163,32 +153,16 @@ def main():
             api_answer = get_api_answer(payload)
 
             if check_response(api_answer):
-                if api_answer.get('homeworks')[0]['homework_name'] == 'wildcat3333__homework_bot.zip':
-                    homework = api_answer.get('homeworks')[0]
-
-                    if old_status is None:
-                        print(old_status)
-                        print(parse_status(homework))
-                        message = parse_status(homework)
-                        send_message(bot, message)
-                        old_status = homework['status']
-
-                    if old_status != homework['status']:
-                        message = parse_status(homework)
-                        send_message(bot, message)
+                homework = api_answer.get('homeworks')[0]
+                if old_status != homework['status']:
+                    message = parse_status(homework)
+                    send_message(bot, message)
 
             time.sleep(RETRY_PERIOD)
 
-        except requests.RequestException as error:
+        except Exception as error:
             message = f'Сбой в работе программы: {error}'
-
-            if old_message is None:
-                send_message(bot, message)
-                old_message = message
-
-            if old_message != message:
-                old_message = message
-                send_message(bot, message)
+            send_message(bot, message)
 
 
 if __name__ == '__main__':
