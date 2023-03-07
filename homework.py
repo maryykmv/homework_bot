@@ -43,6 +43,8 @@ CHANGE_STATUS = 'Изменился статус проверки домашне
 SEND_MESSAGE_OK = 'Удачная отправка сообщения в Telegram: '
 SEND_MESSAGE_FAIL = 'Ошибка при отправке сообщения в Telegram: '
 MESSAGE_ERROR = 'Сбой в работе программы: '
+CHECK_STATUS_CODE = 'Недопустимый код ответа API 403,404,503,502...'
+CHECK_CONNECT = 'Проблема с сетью (сбой DNS, отказ соединения)'
 
 
 def check_tokens():
@@ -55,8 +57,8 @@ def check_tokens():
     if PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         return True
     else:
-        logging.critical(CHECK_VARIABLES.format())
-        raise ValueError(CHECK_VARIABLES.format())
+        logging.critical(CHECK_VARIABLES)
+        raise ValueError(CHECK_VARIABLES)
 
 
 def send_message(bot, message):
@@ -85,13 +87,13 @@ def get_api_answer(timestamp):
             ENDPOINT, headers=HEADERS, params=timestamp
         )
     except requests.exceptions.HTTPError:
-        raise ConnectionError('Недопустимый код ответа API 403,404,503,502...')
+        raise ConnectionError(CHECK_STATUS_CODE)
     except requests.exceptions.Timeout:
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
     except requests.exceptions.ConnectionError:
-        raise ConnectionError('Проблема с сетью (сбой DNS, отказ соединения)')
+        raise ConnectionError(CHECK_CONNECT)
     except requests.exceptions.TooManyRedirects:
         raise ConnectionError(f'Неверный URL {ENDPOINT}')
     except requests.RequestException as error:
@@ -110,13 +112,18 @@ def check_response(response):
     В качестве параметра функция получает ответ API, приведенный
     к типам данных Python.
     """
+    # падают тесты если добавить проверку "Это dict или его наследник".
+    # if not isinstance(type(response), dict):
     if type(response) is not dict:
+
         raise TypeError(f"{CHECK_TYPES}"
-                        f"{type(response['homeworks'])}")
+                        f"{type(response)}")
 
     if 'homeworks' not in response:
         raise TypeError(CHECK_KEYS)
     else:
+        # падают тесты если добавить проверку "Это list или его наследник".
+        # if not isinstance(type(response['homeworks']), list):
         if type(response['homeworks']) is not list:
             raise TypeError(f"{CHECK_TYPES}"
                             f"{type(response['homeworks'])}")
@@ -183,10 +190,10 @@ def main():
 
         except requests.RequestException as error:
             message = f'{CHECK_REQUEST_API} {error}'
-            send_message(bot, message)
 
     except Exception as error:
         message = f'{MESSAGE_ERROR} {error}'
+        logging.error(f'{message}. {error}', exc_info=True)
         send_message(bot, message)
 
 
