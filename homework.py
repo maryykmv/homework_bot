@@ -84,6 +84,16 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
+    except requests.exceptions.HTTPError:
+        raise ConnectionError('Недопустимый код ответа API 403,404,503,502...')
+    except requests.exceptions.Timeout:
+        homework_statuses = requests.get(
+            ENDPOINT, headers=HEADERS, params=timestamp
+        )
+    except requests.exceptions.ConnectionError:
+        raise ConnectionError('Проблема с сетью (сбой DNS, отказ соединения)')
+    except requests.exceptions.TooManyRedirects:
+        raise ConnectionError(f'Неверный URL {ENDPOINT}')
     except requests.RequestException as error:
         raise ConnectionError(f'{CHECK_REQUEST_API}'
                               f'params={timestamp}. {error}.')
@@ -150,25 +160,30 @@ def main():
             mode='w'
         ), stream_handler]
     )
-
-    check_tokens()
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-
-    old_status = None
-
-    # while True:
     try:
-        # payload = {'from_date': int(time.time())}
-        payload = {'from_date': 0}
-        api_answer = get_api_answer(payload)
 
-        if check_response(api_answer):
-            homework = api_answer.get('homeworks')[0]
-            if old_status != homework['status']:
-                message = parse_status(homework)
-                send_message(bot, message)
+        check_tokens()
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
-        time.sleep(RETRY_PERIOD)
+        old_status = None
+
+        # while True:
+        try:
+            # payload = {'from_date': int(time.time())}
+            payload = {'from_date': 0}
+            api_answer = get_api_answer(payload)
+
+            if check_response(api_answer):
+                homework = api_answer.get('homeworks')[0]
+                if old_status != homework['status']:
+                    message = parse_status(homework)
+                    send_message(bot, message)
+
+            time.sleep(RETRY_PERIOD)
+
+        except requests.RequestException as error:
+            message = f'{CHECK_REQUEST_API} {error}'
+            send_message(bot, message)
 
     except Exception as error:
         message = f'{MESSAGE_ERROR} {error}'
