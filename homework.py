@@ -85,24 +85,16 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
-    except requests.exceptions.HTTPError:
-        raise ConnectionError(CHECK_STATUS_CODE)
-    except requests.exceptions.Timeout:
-        homework_statuses = requests.get(
-            ENDPOINT, headers=HEADERS, params=timestamp
-        )
-    except requests.exceptions.ConnectionError:
-        raise ConnectionError(CHECK_CONNECT)
-    except requests.exceptions.TooManyRedirects:
-        raise ConnectionError(f'Неверный URL {ENDPOINT}')
     except requests.RequestException as error:
         raise ConnectionError(f'{CHECK_REQUEST_API}'
                               f'params={timestamp}. {error}.')
 
     if homework_statuses.status_code != 200:
-        raise ConnectionError(f'{CHECK_REQUEST_API}'
-                              f'{homework_statuses.status_code}.'
-                              f'params={timestamp}')
+        raise ValueError(f'{CHECK_REQUEST_API}'
+                         f'{homework_statuses.status_code}.'
+                         f'params={timestamp}')
+    if ('code', 'error') in homework_statuses.json():
+        raise ValueError(f'{homework_statuses.json()}')
     return homework_statuses.json()
 
 
@@ -111,22 +103,17 @@ def check_response(response):
     В качестве параметра функция получает ответ API, приведенный
     к типам данных Python.
     """
-    # падают тесты если добавить проверку "Это dict или его наследник".
-    # if not isinstance(type(response), dict):
-    if type(response) is not dict:
-
+    if not isinstance(response, dict):
         raise TypeError(f"{CHECK_TYPES}"
                         f"{type(response)}")
 
     if 'homeworks' not in response:
         raise TypeError(CHECK_KEYS)
-    else:
-        # падают тесты если добавить проверку "Это list или его наследник".
-        # if not isinstance(type(response['homeworks']), list):
-        if type(response['homeworks']) is not list:
-            raise TypeError(f"{CHECK_TYPES}"
-                            f"{type(response['homeworks'])}")
-        return True
+
+    if not isinstance(response['homeworks'], list):
+        raise TypeError(f"{CHECK_TYPES}"
+                        f"{type(response['homeworks'])}")
+    return True
 
 
 def parse_status(homework):
@@ -155,6 +142,29 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
+    check_tokens()
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+
+    old_status = None
+    timestamp = {'from_date': 0}
+
+    # while True:
+    try:
+        api_answer = get_api_answer(timestamp)
+
+        if check_response(api_answer):
+            homework = api_answer.get('homeworks')[0]
+            if old_status != homework['status']:
+                message = parse_status(homework)
+                send_message(bot, message)
+
+        time.sleep(RETRY_PERIOD)
+
+    except Exception as error:
+        message = f'{CHECK_REQUEST_API} {error}'
+
+
+if __name__ == '__main__':
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setLevel(logging.DEBUG)
 
@@ -166,35 +176,6 @@ def main():
             mode='w'
         ), stream_handler]
     )
-    try:
-
-        check_tokens()
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
-
-        old_status = None
-
-        # while True:
-        try:
-            api_answer = get_api_answer({'from_date': int(time.time())})
-
-            if check_response(api_answer):
-                homework = api_answer.get('homeworks')[0]
-                if old_status != homework['status']:
-                    message = parse_status(homework)
-                    send_message(bot, message)
-
-            time.sleep(RETRY_PERIOD)
-
-        except requests.RequestException as error:
-            message = f'{CHECK_REQUEST_API} {error}'
-
-    except Exception as error:
-        message = f'{MESSAGE_ERROR} {error}'
-        logging.error(f'{message}. {error}', exc_info=True)
-        send_message(bot, message)
-
-
-if __name__ == '__main__':
     # если перенести while в main() зависает тест
     # tests/test_bot.py::TestHomework::test_main_send_request_to_api
     while True:
