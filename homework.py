@@ -42,8 +42,6 @@ CHECK_HOMEWORK_NAME = ('В ответе функции `parse_status`'
                        'не содержится название домашней работы: {value}.')
 CHANGE_STATUS = 'Изменился статус проверки работы "{name}". {value}'
 
-MESSAGE_ERROR = 'Сбой в работе программы: '
-
 
 def check_tokens():
     """Проверяет доступность переменных окружения.
@@ -140,7 +138,6 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
     old_status = None
-    # timestamp = {'from_date': 0}
     timestamp = {'from_date': int(time.time())}
 
     def check_status():
@@ -148,12 +145,11 @@ def main():
             api_answer = get_api_answer(timestamp)
 
             check_response(api_answer)
-            # if not api_answer.get('homeworks')[0]:
-            #     raise ValueError('!!!!!!')
-            homework = api_answer.get('homeworks')[0]
-            if old_status != homework['status']:
-                message = parse_status(homework)
-                send_message(bot, message)
+            if api_answer.get('homeworks'):
+                homework = api_answer.get('homeworks')[0]
+                if old_status != homework['status']:
+                    message = parse_status(homework)
+                    send_message(bot, message)
 
             time.sleep(RETRY_PERIOD)
 
@@ -161,6 +157,9 @@ def main():
             message = CHECK_REQUEST_API.format(
                 endpoint=ENDPOINT, headers=HEADERS, value=timestamp,
                 error=error)
+            logging.error(CHECK_REQUEST_API.format(
+                endpoint=ENDPOINT, headers=HEADERS, value=timestamp,
+                error=error))
             send_message(bot, message)
 
     if __name__ == '__main__':
