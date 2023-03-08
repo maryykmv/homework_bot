@@ -29,21 +29,20 @@ HOMEWORK_VERDICTS = {
 }
 
 
-CHECK_VARIABLES = (f'Проверьте переменные окружения! {VARIABLES}')
-
-CHECK_TYPES = 'В ответе API тип данных не соответствует словарю.'
-CHECK_REQUEST_API = (f'Ошибка при запросе к API: '
-                     f'ENDPOINT={ENDPOINT}, headers={HEADERS},')
-CHECK_KEYS = 'В ответе API нет ключа `homeworks`.'
+CHECK_VARIABLES = 'Проверьте переменные окружения! {name}{value}'
+SEND_MESSAGE_OK = 'Удачная отправка сообщения в Telegram: {value}'
+SEND_MESSAGE_FAIL = 'Ошибка при отправке сообщения в Telegram: {value}.{error}'
+CHECK_REQUEST_API = ('Ошибка при запросе к API: {endpoint}, {headers}, {value}'
+                     '. {error}')
+CHECK_TYPES = 'В ответе API тип данных не соответствует {value}.'
+CHECK_KEYS = 'В ответе API нет ключа {value}.'
+CHECK_HOMEWORK_STATUS = ('В ответе API не содержится статус домашней работы:'
+                         '{value}.')
 CHECK_HOMEWORK_NAME = ('В ответе функции `parse_status`'
-                       'не содержится название домашней работы: ')
-CHECK_HOMEWORK_STATUS = ('В ответе API не содержится статус домашней работы: ')
-CHANGE_STATUS = 'Изменился статус проверки домашней работы: '
-SEND_MESSAGE_OK = 'Удачная отправка сообщения в Telegram: '
-SEND_MESSAGE_FAIL = 'Ошибка при отправке сообщения в Telegram: '
+                       'не содержится название домашней работы: {value}.')
+CHANGE_STATUS = 'Изменился статус проверки работы "{name}". {value}'
+
 MESSAGE_ERROR = 'Сбой в работе программы: '
-CHECK_STATUS_CODE = 'Недопустимый код ответа API 403,404,503,502...'
-CHECK_CONNECT = 'Проблема с сетью (сбой DNS, отказ соединения)'
 
 
 def check_tokens():
@@ -53,7 +52,8 @@ def check_tokens():
     for name in VARIABLES:
         if not globals()[name]:
             logging.critical(globals()[name])
-            raise ValueError(CHECK_VARIABLES)
+            raise ValueError(CHECK_VARIABLES.format(
+                name=name, value=globals()[name]))
 
 
 def send_message(bot, message):
@@ -66,9 +66,10 @@ def send_message(bot, message):
             chat_id=TELEGRAM_CHAT_ID,
             text=message
         )
-        logging.debug(f'{SEND_MESSAGE_OK} {message}')
+        logging.debug(SEND_MESSAGE_OK.format(value=message))
     except Exception as error:
-        logging.error(f'{SEND_MESSAGE_FAIL} {message}. {error}', exc_info=True)
+        logging.error(SEND_MESSAGE_FAIL.format(
+            value=message, error=error), exc_info=True)
 
 
 def get_api_answer(timestamp):
@@ -81,16 +82,20 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
+
     except requests.RequestException as error:
-        raise ConnectionError(f'{CHECK_REQUEST_API}'
-                              f'params={timestamp}. {error}.')
+        raise ConnectionError(CHECK_REQUEST_API.format(
+            endpoint=ENDPOINT, headers=HEADERS, value=timestamp, error=error))
 
     if homework_statuses.status_code != 200:
-        raise ValueError(f'{CHECK_REQUEST_API}'
-                         f'{homework_statuses.status_code}.'
-                         f'params={timestamp}')
+        raise ValueError(CHECK_REQUEST_API.format(
+            endpoint=ENDPOINT, error=homework_statuses.status_code,
+            headers=HEADERS, value=timestamp))
+
     if ('code', 'error') in homework_statuses.json():
-        raise ValueError(f'{homework_statuses.json()}')
+        raise ValueError(CHECK_REQUEST_API.format(
+            endpoint=ENDPOINT, error=homework_statuses.json(),
+            headers=HEADERS, value=timestamp))
     return homework_statuses.json()
 
 
@@ -100,16 +105,13 @@ def check_response(response):
     к типам данных Python.
     """
     if not isinstance(response, dict):
-        raise TypeError(f"{CHECK_TYPES}"
-                        f"{type(response)}")
+        raise TypeError(CHECK_TYPES.format(value='dict'))
 
     if 'homeworks' not in response:
-        raise TypeError(CHECK_KEYS)
+        raise TypeError(CHECK_KEYS.format(value='homeworks'))
 
     if not isinstance(response['homeworks'], list):
-        raise TypeError(f"{CHECK_TYPES}"
-                        f"{type(response['homeworks'])}")
-    return True
+        raise TypeError(CHECK_TYPES.format(value='list'))
 
 
 def parse_status(homework):
@@ -123,16 +125,13 @@ def parse_status(homework):
     status = homework.get('status')
 
     if not homework_name:
-        raise ValueError(f'{CHECK_HOMEWORK_NAME}'
-                         f'{homework_name}')
+        raise ValueError(CHECK_HOMEWORK_NAME.format(value=homework_name))
 
     if status not in HOMEWORK_VERDICTS.keys():
-        raise ValueError(f'{CHECK_HOMEWORK_STATUS}'
-                         f'{homework_name}')
+        raise ValueError(CHECK_HOMEWORK_STATUS.format(value=status))
     if HOMEWORK_VERDICTS[status]:
-        return (f'Изменился статус проверки работы '
-                f'"{homework_name}". '
-                f'{HOMEWORK_VERDICTS[status]}')
+        return (CHANGE_STATUS.format(
+            name=homework_name, value=HOMEWORK_VERDICTS[status]))
 
 
 def main():
