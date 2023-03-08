@@ -140,22 +140,34 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
     old_status = None
-    timestamp = {'from_date': 0}
+    # timestamp = {'from_date': 0}
+    timestamp = {'from_date': int(time.time())}
 
-    # while True:
-    try:
-        api_answer = get_api_answer(timestamp)
+    def check_status():
+        try:
+            api_answer = get_api_answer(timestamp)
 
-        check_response(api_answer)
-        homework = api_answer.get('homeworks')[0]
-        if old_status != homework['status']:
-            message = parse_status(homework)
+            check_response(api_answer)
+            # if not api_answer.get('homeworks')[0]:
+            #     raise ValueError('!!!!!!')
+            homework = api_answer.get('homeworks')[0]
+            if old_status != homework['status']:
+                message = parse_status(homework)
+                send_message(bot, message)
+
+            time.sleep(RETRY_PERIOD)
+
+        except Exception as error:
+            message = CHECK_REQUEST_API.format(
+                endpoint=ENDPOINT, headers=HEADERS, value=timestamp,
+                error=error)
             send_message(bot, message)
 
-        time.sleep(RETRY_PERIOD)
-
-    except Exception as error:
-        message = f'{CHECK_REQUEST_API} {error}'
+    if __name__ == '__main__':
+        while True:
+            check_status()
+    else:
+        check_status()
 
 
 if __name__ == '__main__':
@@ -170,7 +182,4 @@ if __name__ == '__main__':
             mode='w'
         ), stream_handler]
     )
-    # если перенести while в main() зависает тест
-    # tests/test_bot.py::TestHomework::test_main_send_request_to_api
-    while True:
-        main()
+    main()
