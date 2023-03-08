@@ -18,6 +18,9 @@ RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
+VARIABLES = ('PRACTICUM_TOKEN',
+             'TELEGRAM_TOKEN',
+             'TELEGRAM_CHAT_ID')
 
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -26,10 +29,7 @@ HOMEWORK_VERDICTS = {
 }
 
 
-CHECK_VARIABLES = ('Проверьте переменные окружения! PRACTICUM_TOKEN'
-                   f'={PRACTICUM_TOKEN} ,'
-                   f'TELEGRAM_TOKEN={TELEGRAM_TOKEN},'
-                   f'TELEGRAM_CHAT_ID={TELEGRAM_CHAT_ID}')
+CHECK_VARIABLES = (f'Проверьте переменные окружения! {VARIABLES}')
 
 CHECK_TYPES = 'В ответе API тип данных не соответствует словарю.'
 CHECK_REQUEST_API = (f'Ошибка при запросе к API: '
@@ -50,14 +50,10 @@ def check_tokens():
     """Проверяет доступность переменных окружения.
     Если отсутствует хотя бы одна переменная окружения выходим.
     """
-    if all((globals()[name] for name in (
-            'PRACTICUM_TOKEN',
-            'TELEGRAM_TOKEN',
-            'TELEGRAM_CHAT_ID'))):
-        return True
-    else:
-        logging.critical(CHECK_VARIABLES)
-        raise ValueError(CHECK_VARIABLES)
+    for name in VARIABLES:
+        if not globals()[name]:
+            logging.critical(globals()[name])
+            raise ValueError(CHECK_VARIABLES)
 
 
 def send_message(bot, message):
@@ -133,11 +129,10 @@ def parse_status(homework):
     if status not in HOMEWORK_VERDICTS.keys():
         raise ValueError(f'{CHECK_HOMEWORK_STATUS}'
                          f'{homework_name}')
-    for status_key in HOMEWORK_VERDICTS.keys():
-        if (status_key == status):
-            return (f'Изменился статус проверки работы '
-                    f'"{homework_name}". '
-                    f'{HOMEWORK_VERDICTS[status_key]}')
+    if HOMEWORK_VERDICTS[status]:
+        return (f'Изменился статус проверки работы '
+                f'"{homework_name}". '
+                f'{HOMEWORK_VERDICTS[status]}')
 
 
 def main():
@@ -152,11 +147,11 @@ def main():
     try:
         api_answer = get_api_answer(timestamp)
 
-        if check_response(api_answer):
-            homework = api_answer.get('homeworks')[0]
-            if old_status != homework['status']:
-                message = parse_status(homework)
-                send_message(bot, message)
+        check_response(api_answer)
+        homework = api_answer.get('homeworks')[0]
+        if old_status != homework['status']:
+            message = parse_status(homework)
+            send_message(bot, message)
 
         time.sleep(RETRY_PERIOD)
 
