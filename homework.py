@@ -47,13 +47,21 @@ def check_tokens():
     """Проверяет доступность переменных окружения.
     Если отсутствует хотя бы одна переменная окружения выходим.
     """
-    result = []
+    results = []
     for name in VARIABLES:
         if not globals()[name]:
-            result.append(name)
-    if result != []:
-        logging.critical(CHECK_VARIABLES.format(name=result))
-        raise ValueError(CHECK_VARIABLES.format(name=result))
+            results.append(name)
+    if results:
+        logging.critical(CHECK_VARIABLES.format(name=results))
+        raise ValueError(CHECK_VARIABLES.format(name=results))
+
+    # results = []
+    # for name in VARIABLES:
+    #     if not globals()[name]:
+    #         results.append(name)
+    # if results:
+    #     logging.critical(CHECK_VARIABLES.format(name=results))
+    #     raise ValueError(CHECK_VARIABLES.format(name=results))
 
 
 def send_message(bot, message):
@@ -68,8 +76,8 @@ def send_message(bot, message):
         )
         logging.debug(SEND_MESSAGE_OK.format(value=message))
     except Exception as error:
-        logging.error(SEND_MESSAGE_FAIL.format(
-            value=message, error=error), exc_info=True)
+        logging.exception(SEND_MESSAGE_FAIL.format(
+            value=message, error=error))
 
 
 def get_api_answer(timestamp):
@@ -131,13 +139,13 @@ def parse_status(homework):
     status = homework.get('status')
 
     if not homework_name:
-        raise ValueError(CHECK_HOMEWORK_NAME)
+        raise KeyError(CHECK_HOMEWORK_NAME)
 
     if status not in HOMEWORK_VERDICTS:
         raise ValueError(CHECK_HOMEWORK_STATUS.format(value=status))
 
-    return (CHANGE_STATUS.format(
-            name=homework_name, value=HOMEWORK_VERDICTS[status]))
+    return CHANGE_STATUS.format(
+        name=homework_name, value=HOMEWORK_VERDICTS[status])
 
 
 def main():
