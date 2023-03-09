@@ -14,6 +14,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
+
 RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -32,15 +33,21 @@ HOMEWORK_VERDICTS = {
 CHECK_VARIABLES = 'Проверьте переменные окружения! {name}.'
 SEND_MESSAGE_OK = 'Удачная отправка сообщения в Telegram: {value}'
 SEND_MESSAGE_FAIL = 'Ошибка при отправке сообщения в Telegram: {value}.{error}'
-CHECK_REQUEST_API = ('Ошибка при запросе к API: {endpoint}, {headers}, {name},'
-                     ' {value}. {dt}.')
-CHECK_TYPES = 'В ответе API тип данных {type} не соответствует {value}.'
+CHECK_REQUEST_API = ('Ошибка при запросе к API: {endpoint}, {headers}, {value}'
+                     '. {dt}. {error}')
+CHECK_CODE_REQUEST_API = ('Код ошибки при запросе к API: {endpoint}, {headers}'
+                          ', {value}. {dt}.')
+CHECK_RESPONSE_API = ('Ошибка в ответе API: {endpoint}, {headers}, {value}.'
+                      ' {dt}.')
+CHECK_TYPE_DICT = 'В ответе API тип данных {type} не соответствует словарю.'
+CHECK_TYPE_LIST = 'В ответе API тип данных {type} не соответствует списку.'
 CHECK_KEYS = 'В ответе API нет ключа {value}.'
 CHECK_HOMEWORK_STATUS = ('В ответе API не содержится статус домашней работы:'
                          '{value}.')
 CHECK_HOMEWORK_NAME = ('В ответе функции `parse_status`'
                        'не содержится название домашней работы.')
 CHANGE_STATUS = 'Изменился статус проверки работы "{name}". {value}'
+MESSAGE_ERRORS = 'Произошел сбой: {error}'
 
 
 def check_tokens():
@@ -48,20 +55,10 @@ def check_tokens():
     Если отсутствует хотя бы одна переменная окружения выходим.
     """
     results = []
-    for name in VARIABLES:
-        if not globals()[name]:
-            results.append(name)
+    results = [name for name in VARIABLES if not globals()[name]]
     if results:
         logging.critical(CHECK_VARIABLES.format(name=results))
         raise ValueError(CHECK_VARIABLES.format(name=results))
-
-    # results = []
-    # for name in VARIABLES:
-    #     if not globals()[name]:
-    #         results.append(name)
-    # if results:
-    #     logging.critical(CHECK_VARIABLES.format(name=results))
-    #     raise ValueError(CHECK_VARIABLES.format(name=results))
 
 
 def send_message(bot, message):
@@ -91,24 +88,19 @@ def get_api_answer(timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=timestamp
         )
-
     except requests.RequestException as error:
         raise ConnectionError(CHECK_REQUEST_API.format(
-            endpoint=ENDPOINT, headers=HEADERS, dt=timestamp, value=error,
-            name=''))
-
+            endpoint=ENDPOINT, headers=HEADERS, dt=timestamp, error=error))
     if homework_statuses.status_code != 200:
-        raise ValueError(CHECK_REQUEST_API.format(
+        raise ValueError(CHECK_CODE_REQUEST_API.format(
             endpoint=ENDPOINT, value=homework_statuses.status_code,
-            headers=HEADERS, dt=timestamp, name=''))
-
+            headers=HEADERS, dt=timestamp))
     result = homework_statuses.json()
     # result = {'error': 'asd', 'code': 'sasd'}
     if 'code' in result or 'error' in result:
-        raise ValueError(CHECK_REQUEST_API.format(
+        raise ValueError(CHECK_RESPONSE_API.format(
             endpoint=ENDPOINT, name=result.keys(),
             value=result.values(), headers=HEADERS, dt=timestamp))
-
     return result
 
 
@@ -118,14 +110,13 @@ def check_response(response):
     к типам данных Python.
     """
     if not isinstance(response, dict):
-        raise TypeError(CHECK_TYPES.format(type=type(response), value='dict'))
-
+        raise TypeError(CHECK_TYPE_DICT.format(type=type(response)))
     if 'homeworks' not in response:
         raise TypeError(CHECK_KEYS.format(value='homeworks'))
-
-    if not isinstance(response['homeworks'], list):
-        raise TypeError(CHECK_TYPES.format(
-            type=type(response['homeworks']), value='list'))
+    data = response['homeworks']
+    if not isinstance(data, list):
+        raise TypeError(CHECK_TYPE_LIST.format(
+            type=type(data)))
 
 
 def parse_status(homework):
@@ -137,13 +128,10 @@ def parse_status(homework):
     """
     homework_name = homework.get('homework_name')
     status = homework.get('status')
-
     if not homework_name:
         raise KeyError(CHECK_HOMEWORK_NAME)
-
     if status not in HOMEWORK_VERDICTS:
         raise ValueError(CHECK_HOMEWORK_STATUS.format(value=status))
-
     return CHANGE_STATUS.format(
         name=homework_name, value=HOMEWORK_VERDICTS[status])
 
@@ -156,30 +144,24 @@ def main():
     old_status = None
     timestamp = 0
     # timestamp = {'from_date': int(time.time())}
-
     while True:
         try:
             api_answer = get_api_answer(timestamp)
-
             check_response(api_answer)
-            if api_answer.get('homeworks'):
-                homework = api_answer.get('homeworks')[0]
-
+            data = api_answer.get('homeworks')
+            if data:
+                homework = data[0]
                 if old_status != homework['status']:
                     message = parse_status(homework)
                     send_message(bot, message)
                     old_status = homework['status']
 
-            time.sleep(RETRY_PERIOD)
-
         except Exception as error:
-            message = CHECK_REQUEST_API.format(
-                endpoint=ENDPOINT, headers=HEADERS,
-                dt=timestamp, value=error, name='')
+            message = MESSAGE_ERRORS.format(error=error)
             logging.error(message)
-            time.sleep(RETRY_PERIOD)
             send_message(bot, message)
 
+        time.sleep(RETRY_PERIOD)
 
 if __name__ == '__main__':
     logging.basicConfig(
