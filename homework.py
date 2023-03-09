@@ -37,8 +37,8 @@ CHECK_REQUEST_API = ('Ошибка при запросе к API: {endpoint}, {he
                      '. {dt}. {error}')
 CHECK_CODE_REQUEST_API = ('Код ошибки при запросе к API: {endpoint}, {headers}'
                           ', {value}. {dt}.')
-CHECK_RESPONSE_API = ('Ошибка в ответе API: {endpoint}, {headers}, {value}.'
-                      ' {dt}.')
+CHECK_RESPONSE_API = ('Ошибка в ответе API: {endpoint}, {headers}, {name}: '
+                      ' {value}. {dt}.')
 CHECK_TYPE_DICT = 'В ответе API тип данных {type} не соответствует словарю.'
 CHECK_TYPE_LIST = 'В ответе API тип данных {type} не соответствует списку.'
 CHECK_KEYS = 'В ответе API нет ключа {value}.'
@@ -96,12 +96,13 @@ def get_api_answer(timestamp):
             endpoint=ENDPOINT, value=homework_statuses.status_code,
             headers=HEADERS, dt=timestamp))
     result = homework_statuses.json()
-    # result = {'error': 'asd', 'code': 'sasd'}
-    if 'code' in result or 'error' in result:
-        raise ValueError(CHECK_RESPONSE_API.format(
-            endpoint=ENDPOINT, name=result.keys(),
-            value=result.values(), headers=HEADERS, dt=timestamp))
-    return result
+    keys = ['code', 'error']
+    for key in keys:
+        if key in result:
+            raise ValueError(CHECK_RESPONSE_API.format(
+                endpoint=ENDPOINT, name=key,
+                value=result[key], headers=HEADERS, dt=timestamp))
+        return result
 
 
 def check_response(response):
@@ -142,8 +143,9 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
     old_status = None
+    old_message = None
     timestamp = 0
-    # timestamp = {'from_date': int(time.time())}
+    # timestamp = int(time.time())
     while True:
         try:
             api_answer = get_api_answer(timestamp)
@@ -154,14 +156,20 @@ def main():
                 if old_status != homework['status']:
                     message = parse_status(homework)
                     send_message(bot, message)
-                    old_status = homework['status']
+
+                    print(f'??????????{message}')
+                    print(f'@@@{old_status}')
+                    old_status = data[0]['status']
+                    print(f'!!!!!!!!{old_status}')
 
         except Exception as error:
             message = MESSAGE_ERRORS.format(error=error)
             logging.error(message)
-            send_message(bot, message)
-
+            if old_message != message:
+                send_message(bot, message)
+            old_message = message
         time.sleep(RETRY_PERIOD)
+
 
 if __name__ == '__main__':
     logging.basicConfig(
