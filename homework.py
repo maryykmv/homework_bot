@@ -72,9 +72,11 @@ def send_message(bot, message):
             text=message
         )
         logging.debug(SEND_MESSAGE_OK.format(value=message))
+        return True
     except Exception as error:
         logging.exception(SEND_MESSAGE_FAIL.format(
             value=message, error=error))
+        return False
 
 
 def get_api_answer(timestamp):
@@ -144,8 +146,8 @@ def main():
 
     old_status = None
     old_message = None
-    timestamp = 0
-    # timestamp = int(time.time())
+    # timestamp = 0
+    timestamp = int(time.time())
     while True:
         try:
             api_answer = get_api_answer(timestamp)
@@ -155,19 +157,14 @@ def main():
                 homework = data[0]
                 if old_status != homework['status']:
                     message = parse_status(homework)
-                    send_message(bot, message)
-
-                    print(f'??????????{message}')
-                    print(f'@@@{old_status}')
-                    old_status = data[0]['status']
-                    print(f'!!!!!!!!{old_status}')
-
+                    if send_message(bot, message):
+                        old_status = data[0]['status']
         except Exception as error:
             message = MESSAGE_ERRORS.format(error=error)
             logging.error(message)
             if old_message != message:
-                send_message(bot, message)
-            old_message = message
+                if send_message(bot, message):
+                    old_message = message
         time.sleep(RETRY_PERIOD)
 
 
