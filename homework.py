@@ -54,7 +54,6 @@ def check_tokens():
     """Проверяет доступность переменных окружения.
     Если отсутствует хотя бы одна переменная окружения выходим.
     """
-    results = []
     results = [name for name in VARIABLES if not globals()[name]]
     if results:
         logging.critical(CHECK_VARIABLES.format(name=results))
@@ -104,7 +103,7 @@ def get_api_answer(timestamp):
             raise ValueError(CHECK_RESPONSE_API.format(
                 endpoint=ENDPOINT, name=key,
                 value=result[key], headers=HEADERS, dt=timestamp))
-        return result
+    return result
 
 
 def check_response(response):
@@ -146,25 +145,27 @@ def main():
 
     old_status = None
     old_message = None
-    # timestamp = 0
-    timestamp = int(time.time())
+    timestamp = 0
+    # timestamp = int(time.time())
     while True:
         try:
             api_answer = get_api_answer(timestamp)
             check_response(api_answer)
-            data = api_answer.get('homeworks')
-            if data:
-                homework = data[0]
-                if old_status != homework['status']:
-                    message = parse_status(homework)
-                    if send_message(bot, message):
-                        old_status = data[0]['status']
+            homeworks = api_answer.get('homeworks')
+            if homeworks:
+                homework = homeworks[0]
+                print(f'!!!!{homeworks[0]}')
+                if (old_status != homework['status']
+                   and send_message(bot, parse_status(homework))):
+                    old_status = homeworks[0]['status']
+                    timestamp = homeworks[0]['date_updated']
+                    print(f'!!!!{timestamp}')
+                    print(f'!!!!{time.time()}')
         except Exception as error:
             message = MESSAGE_ERRORS.format(error=error)
-            logging.error(message)
-            if old_message != message:
-                if send_message(bot, message):
-                    old_message = message
+            logging.exception(message)
+            if old_message != message and send_message(bot, message):
+                old_message = message
         time.sleep(RETRY_PERIOD)
 
 
