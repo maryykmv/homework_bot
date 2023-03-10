@@ -1,3 +1,4 @@
+import datetime as dt
 import logging
 import os
 import time
@@ -33,12 +34,12 @@ HOMEWORK_VERDICTS = {
 CHECK_VARIABLES = 'Проверьте переменные окружения! {name}.'
 SEND_MESSAGE_OK = 'Удачная отправка сообщения в Telegram: {value}'
 SEND_MESSAGE_FAIL = 'Ошибка при отправке сообщения в Telegram: {value}.{error}'
-CHECK_REQUEST_API = ('Ошибка при запросе к API: {endpoint}, {headers}, {value}'
-                     '. {dt}. {error}')
-CHECK_CODE_REQUEST_API = ('Код ошибки при запросе к API: {endpoint}, {headers}'
-                          ', {value}. {dt}.')
-CHECK_RESPONSE_API = ('Ошибка в ответе API: {endpoint}, {headers}, {name}: '
-                      ' {value}. {dt}.')
+CHECK_REQUEST_API = ('Ошибка при запросе к API: {url}, {headers}, {value}'
+                     '. {params}. {error}')
+CHECK_CODE_REQUEST_API = ('Код ошибки при запросе к API: {url}, {headers}'
+                          ', {value}. {params}.')
+CHECK_RESPONSE_API = ('Ошибка в ответе API: {url}, {headers}, {name}: '
+                      ' {value}. {params}.')
 CHECK_TYPE_DICT = 'В ответе API тип данных {type} не соответствует словарю.'
 CHECK_TYPE_LIST = 'В ответе API тип данных {type} не соответствует списку.'
 CHECK_KEYS = 'В ответе API нет ключа {value}.'
@@ -85,24 +86,20 @@ def get_api_answer(timestamp):
     из формата JSON к типам данных Python.
     """
     timestamp = {'from_date': timestamp}
+    request_parameters = dict(url=ENDPOINT, headers=HEADERS, params=timestamp)
     try:
-        homework_statuses = requests.get(
-            ENDPOINT, headers=HEADERS, params=timestamp
-        )
+        homework_statuses = requests.get(**request_parameters)
     except requests.RequestException as error:
         raise ConnectionError(CHECK_REQUEST_API.format(
-            endpoint=ENDPOINT, headers=HEADERS, dt=timestamp, error=error))
+            **request_parameters, error=error))
     if homework_statuses.status_code != 200:
         raise ValueError(CHECK_CODE_REQUEST_API.format(
-            endpoint=ENDPOINT, value=homework_statuses.status_code,
-            headers=HEADERS, dt=timestamp))
+            **request_parameters, value=homework_statuses.status_code))
     result = homework_statuses.json()
-    keys = ['code', 'error']
-    for key in keys:
+    for key in ['code', 'error']:
         if key in result:
             raise ValueError(CHECK_RESPONSE_API.format(
-                endpoint=ENDPOINT, name=key,
-                value=result[key], headers=HEADERS, dt=timestamp))
+                **request_parameters, name=key, value=result[key]))
     return result
 
 
@@ -145,8 +142,7 @@ def main():
 
     old_status = None
     old_message = None
-    timestamp = 0
-    # timestamp = int(time.time())
+    timestamp = int(time.time())
     while True:
         try:
             api_answer = get_api_answer(timestamp)
@@ -154,13 +150,13 @@ def main():
             homeworks = api_answer.get('homeworks')
             if homeworks:
                 homework = homeworks[0]
-                print(f'!!!!{homeworks[0]}')
                 if (old_status != homework['status']
                    and send_message(bot, parse_status(homework))):
                     old_status = homeworks[0]['status']
-                    timestamp = homeworks[0]['date_updated']
-                    print(f'!!!!{timestamp}')
-                    print(f'!!!!{time.time()}')
+                    timestamp = int(
+                        dt.datetime.strptime(
+                            homeworks[0]['date_updated'], "%Y-%m-%dT%H:%M:%SZ"
+                        ).timestamp())
         except Exception as error:
             message = MESSAGE_ERRORS.format(error=error)
             logging.exception(message)
