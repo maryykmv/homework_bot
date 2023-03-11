@@ -1,4 +1,3 @@
-import datetime as dt
 import logging
 import os
 import time
@@ -40,8 +39,10 @@ CHECK_CODE_REQUEST_API = ('Код ошибки при запросе к API: {ur
                           ', {value}. {params}.')
 CHECK_RESPONSE_API = ('Ошибка в ответе API: {url}, {headers}, {name}: '
                       ' {value}. {params}.')
-CHECK_TYPE_DICT = 'В ответе API тип данных {type} не соответствует словарю.'
-CHECK_TYPE_LIST = 'В ответе API тип данных {type} не соответствует списку.'
+CHECK_TYPE_DICT = ('В ответе API тип данных  {type} {value}'
+                   'не соответствует словарю (dict).')
+CHECK_TYPE_LIST = ('В ответе API тип данных {type} {value}'
+                   'не соответствует списку list().')
 CHECK_KEYS = 'В ответе API нет ключа {value}.'
 CHECK_HOMEWORK_STATUS = ('В ответе API не содержится статус домашней работы:'
                          '{value}.')
@@ -85,8 +86,8 @@ def get_api_answer(timestamp):
     В случае успешного запроса должна вернуть ответ API, приведя его
     из формата JSON к типам данных Python.
     """
-    timestamp = {'from_date': timestamp}
-    request_parameters = dict(url=ENDPOINT, headers=HEADERS, params=timestamp)
+    request_parameters = dict(
+        url=ENDPOINT, headers=HEADERS, params={'from_date': timestamp})
     try:
         homework_statuses = requests.get(**request_parameters)
     except requests.RequestException as error:
@@ -109,13 +110,14 @@ def check_response(response):
     к типам данных Python.
     """
     if not isinstance(response, dict):
-        raise TypeError(CHECK_TYPE_DICT.format(type=type(response)))
+        raise TypeError(CHECK_TYPE_DICT.format(
+            type=type(response), value=response))
     if 'homeworks' not in response:
         raise TypeError(CHECK_KEYS.format(value='homeworks'))
     data = response['homeworks']
     if not isinstance(data, list):
         raise TypeError(CHECK_TYPE_LIST.format(
-            type=type(data)))
+            type=type(data), value=data))
 
 
 def parse_status(homework):
@@ -148,15 +150,13 @@ def main():
             api_answer = get_api_answer(timestamp)
             check_response(api_answer)
             homeworks = api_answer.get('homeworks')
+            new_timestamp = api_answer.get('current_date', timestamp)
             if homeworks:
                 homework = homeworks[0]
                 if (old_status != homework['status']
                    and send_message(bot, parse_status(homework))):
                     old_status = homeworks[0]['status']
-                    timestamp = int(
-                        dt.datetime.strptime(
-                            homeworks[0]['date_updated'], "%Y-%m-%dT%H:%M:%SZ"
-                        ).timestamp())
+                    timestamp = new_timestamp
         except Exception as error:
             message = MESSAGE_ERRORS.format(error=error)
             logging.exception(message)
