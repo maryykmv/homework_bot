@@ -39,10 +39,10 @@ CHECK_CODE_REQUEST_API = ('Код ошибки при запросе к API: {ur
                           ', {value}. {params}.')
 CHECK_RESPONSE_API = ('Ошибка в ответе API: {url}, {headers}, {name}: '
                       ' {value}. {params}.')
-CHECK_TYPE_DICT = ('В ответе API тип данных  {type} {value}'
-                   'не соответствует словарю (dict).')
-CHECK_TYPE_LIST = ('В ответе API тип данных {type} {value}'
-                   'не соответствует списку list().')
+CHECK_TYPE_DICT = ('Ответ API не соответствует словарю (dict). '
+                   'Передан тип данных {type}')
+CHECK_TYPE_LIST = ('В ответе API ключ homeworks '
+                   'не соответствует списку list(). Передан тип данных {type}')
 CHECK_KEYS = 'В ответе API нет ключа {value}.'
 CHECK_HOMEWORK_STATUS = ('В ответе API не содержится статус домашней работы:'
                          '{value}.')
@@ -111,13 +111,13 @@ def check_response(response):
     """
     if not isinstance(response, dict):
         raise TypeError(CHECK_TYPE_DICT.format(
-            type=type(response), value=response))
+            type=type(response)))
     if 'homeworks' not in response:
         raise TypeError(CHECK_KEYS.format(value='homeworks'))
     data = response['homeworks']
     if not isinstance(data, list):
         raise TypeError(CHECK_TYPE_LIST.format(
-            type=type(data), value=data))
+            type=type(data)))
 
 
 def parse_status(homework):
@@ -150,13 +150,12 @@ def main():
             api_answer = get_api_answer(timestamp)
             check_response(api_answer)
             homeworks = api_answer.get('homeworks')
-            new_timestamp = api_answer.get('current_date', timestamp)
             if homeworks:
                 homework = homeworks[0]
                 if (old_status != homework['status']
                    and send_message(bot, parse_status(homework))):
-                    old_status = homeworks[0]['status']
-                    timestamp = new_timestamp
+                    old_status = homework['status']
+                    timestamp = api_answer.get('current_date', timestamp)
         except Exception as error:
             message = MESSAGE_ERRORS.format(error=error)
             logging.exception(message)
