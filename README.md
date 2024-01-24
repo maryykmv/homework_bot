@@ -49,11 +49,15 @@ python3 -m venv venv
 TELEGRAM_TOKEN=xxxxxx
 PRACTICUM_TOKEN=xxxxxxxxx
 TELEGRAM_CHAT_ID=xxxxxxxx
+```
 
 [PRACTICUM_TOKEN](https://oauth.yandex.ru/authorize?response_type=token&client_id=1d0b9dd4d652455a9eb710d450ff456a) для доступа к Домашке
+
 TELEGRAM_TOKEN  @BotFather зарегистрировать аккаунт бота в Telegram и получить Token
+
 TELEGRAM_CHAT_ID  @userinfobot - узнать ID своего Telegram-аккаунта
-```
+
+
 
 - Обновляем менеджер пакетов pip:
 ```
@@ -70,6 +74,10 @@ pip install -r requirements.txt
 python homework.py
 ```
 
+- Запустить тесты
+```
+pytest
+```
 
 ## Автор проекта
 _[Мария Константинова](https://github.com/maryykmv/)_, python-developer
